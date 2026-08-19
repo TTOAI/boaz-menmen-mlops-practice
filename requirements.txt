@@ -1,0 +1,16 @@
+# 데이터
+pandas~=2.2
+pyarrow~=16.0
+numpy~=1.26
+
+# 모델
+lightgbm~=4.3
+scikit-learn~=1.5
+
+# 실험 추적
+mlflow~=2.16
+
+# 선택 과제
+dvc[gdrive]~=3.51
+pyyaml~=6.0
+pytest~=8.2

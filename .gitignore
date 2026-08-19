@@ -1,0 +1,37 @@
+# 데이터
+data/raw/
+data/processed/
+*.csv
+*.parquet
+
+# MLflow
+mlruns/
+mlartifacts/
+*.db
+
+# Models
+models/
+
+# DVC
+.dvc/cache/
+.dvc/tmp/
+
+# Python~
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+
+# 테스트
+.pytest_cache/
+.coverage
+
+# 노트북
+.ipynb_checkpoints/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
