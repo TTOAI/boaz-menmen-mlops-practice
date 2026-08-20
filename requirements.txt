@@ -7,10 +7,11 @@ numpy~=1.26
 lightgbm~=4.3
 scikit-learn~=1.5
 
-# 실험 추적
-mlflow~=2.16
+# 실험 추적 및 모델 레지스트리
+# 2.x와 3.x는 log_model의 인자명이 artifact_path / name 으로 갈린다.
+# 참가자 간 상호 재현을 위해 2.22 계열로 좁힌다.
+mlflow~=2.22
 
-# 선택 과제
-dvc[gdrive]~=3.51
-pyyaml~=6.0
-pytest~=8.2
+# 서빙
+fastapi~=0.115
+uvicorn~=0.30

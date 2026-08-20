@@ -19,12 +19,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import lightgbm as lgb
 import mlflow
 import mlflow.lightgbm
 import pandas as pd
+from mlflow.models import infer_signature
 
 from preprocess import (
     CATEGORICAL_COLS,
@@ -38,6 +40,11 @@ from preprocess import (
 NON_FEATURE_COLS = [TARGET, MONTH_COL]
 
 RANDOM_STATE = 42
+
+# 서빙(model_loader.py)과 같은 환경변수·기본값을 읽는다.
+# 값이 갈리면 서빙이 다른 모델을 로드하므로 출처를 환경변수 하나로 맞춘다.
+MODEL_NAME = os.getenv("MODEL_NAME", "baf-fraud-lgbm")
+MODEL_ALIAS = os.getenv("MODEL_ALIAS", "production")
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +142,26 @@ def run(data_dir: Path, experiment: str, run_id_path: Path) -> str:
         model.fit(X_train, y_train, categorical_feature=cat_cols)
 
         print("[4/4] log model")
-        mlflow.lightgbm.log_model(model.booster_, artifact_path="model")
+        booster = model.booster_
+
+        # signature: 모델 입출력 스키마. 5주차에 전원 공통으로 남아 있던 경고의 해소.
+        head = X_train.head(100)
+        signature = infer_signature(head, booster.predict(head))
+
+        # categories.json: signature는 컬럼 타입만 기록하므로 category의 레벨 집합이
+        # 복원되지 않는다. 서빙이 요청 1건에서 카테고리를 추론하면 LightGBM 내부
+        # 정수 코드가 어긋나 예외 없이 점수만 틀어진다.
+        categories = {
+            col: X_train[col].cat.categories.astype(str).tolist() for col in cat_cols
+        }
+
+        mlflow.lightgbm.log_model(
+            booster,
+            artifact_path="model",
+            signature=signature,
+            registered_model_name=MODEL_NAME,
+        )
+        mlflow.log_dict(categories, "categories.json")
 
         # evaluate.py가 같은 run에 지표를 붙일 수 있도록 run_id를 남긴다
         run_id_path.parent.mkdir(parents=True, exist_ok=True)
@@ -143,6 +169,16 @@ def run(data_dir: Path, experiment: str, run_id_path: Path) -> str:
 
         print(f"  run_id = {run_id}")
         print(f"  saved  -> {run_id_path}")
+
+    # alias는 등록 시 자동으로 붙지 않는다. 서빙이 참조하는 지점이므로 명시적으로 지정한다.
+    client = mlflow.MlflowClient()
+    version = next(
+        mv.version
+        for mv in client.search_model_versions(f"name='{MODEL_NAME}'")
+        if mv.run_id == run_id
+    )
+    client.set_registered_model_alias(MODEL_NAME, MODEL_ALIAS, version)
+    print(f"  registered {MODEL_NAME} v{version} @{MODEL_ALIAS}")
 
     return run_id
 

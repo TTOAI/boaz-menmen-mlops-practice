@@ -1,0 +1,51 @@
+# MLflow tracking server + 학습 컨테이너
+#
+# 서버를 두는 이유는 두 가지다.
+#   1. 모델 레지스트리는 file 백엔드에서 동작하지 않는다. backend-store가 sqlite여야 한다.
+#   2. 5주차에 컨테이너 run의 모델 아티팩트가 소실된 원인이 경로 불일치였다.
+#      experiment의 artifact_location이 호스트 절대경로로 고정되는데
+#      컨테이너에는 그 경로가 없어, 마운트가 아닌 컨테이너 자체 파일시스템에 쓰고 사라졌다.
+#      서버가 아티팩트를 프록시하면 artifact_location이 mlflow-artifacts:/ 가 되어
+#      클라이언트가 물리 경로를 알 필요가 없어진다.
+#
+# 호스트 포트가 5050인 이유. macOS의 ControlCenter(AirPlay 수신)가 5000을 점유한다.
+
+services:
+  mlflow:
+    build: .
+    command:
+      - mlflow
+      - server
+      - --host=0.0.0.0
+      - --port=5000
+      - --backend-store-uri=sqlite:////mlflow/mlflow.db
+      - --artifacts-destination=/mlflow/artifacts
+    ports:
+      - "5050:5000"
+    volumes:
+      - ./mlflow-store:/mlflow
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:5000/health")
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  trainer:
+    build: .
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      # 서버 경유. mlruns/ 마운트가 더 이상 필요 없다.
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      # git을 설치해도 리포지토리가 없으면 MLflow가 커밋을 읽지 못한다.
+      # 이미지에 굽지 않고 마운트해야 항상 현재 커밋이 기록된다.
+      - ./.git:/app/.git:ro
