@@ -120,8 +120,17 @@ def cast_categoricals(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def split_by_month(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    """month 기준 시간 분할. month 7은 반환하지 않음"""
+def split_by_month(
+    df: pd.DataFrame, include_holdout: bool = False
+) -> dict[str, pd.DataFrame]:
+    """month 기준 시간 분할.
+
+    기본 동작은 차단(deny)이다. month 7은 반환하지 않으므로 파일도 생기지 않는다.
+
+    include_holdout=True 는 7주차 드리프트 실험에서 홀드아웃을 최초 1회 해제할
+    때만 쓴다. 기본값을 True로 바꾸지 말 것. tests/test_holdout_guard.py 가
+    이 기본값을 지키고 있다.
+    """
     train = df[df[MONTH_COL].isin(TRAIN_MONTHS)].reset_index(drop=True)
     valid = df[df[MONTH_COL].isin(VALID_MONTHS)].reset_index(drop=True)
 
@@ -129,11 +138,20 @@ def split_by_month(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     assert not (set(TRAIN_MONTHS) & set(VALID_MONTHS)), "train/valid month 구간이 겹칩니다"
     assert MONTH_COL in train.columns
 
+    splits = {"train": train, "valid": valid}
     n_holdout = int(df[MONTH_COL].isin(HOLDOUT_MONTHS).sum())
-    if n_holdout:
+
+    if include_holdout:
+        splits["holdout"] = df[df[MONTH_COL].isin(HOLDOUT_MONTHS)].reset_index(drop=True)
+        print(
+            f"[warn] 홀드아웃 해제. month {HOLDOUT_MONTHS} {n_holdout:,}행을 저장합니다.\n"
+            "       운영 시뮬레이션 전용이며 재학습 데이터로 쓰지 마십시오.",
+            file=sys.stderr,
+        )
+    elif n_holdout:
         print(f"[info] month 7 {n_holdout:,}행은 제외했습니다 (드리프트 실험 전용)")
 
-    return {"train": train, "valid": valid}
+    return splits
 
 
 def report(name: str, df: pd.DataFrame) -> None:
@@ -159,7 +177,9 @@ def save(df: pd.DataFrame, path: Path) -> None:
     print(f"  saved -> {path}")
 
 
-def run(raw_path: Path, out_dir: Path) -> dict[str, pd.DataFrame]:
+def run(
+    raw_path: Path, out_dir: Path, include_holdout: bool = False
+) -> dict[str, pd.DataFrame]:
     print(f"[1/5] load  {raw_path}")
     df = load_raw(raw_path)
 
@@ -173,7 +193,7 @@ def run(raw_path: Path, out_dir: Path) -> dict[str, pd.DataFrame]:
     df = cast_categoricals(df)
 
     print("[5/5] split by month")
-    splits = split_by_month(df)
+    splits = split_by_month(df, include_holdout=include_holdout)
     for name, part in splits.items():
         report(name, part)
         save(part, out_dir / f"{name}.parquet")
@@ -185,9 +205,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="BAF Base 전처리")
     parser.add_argument("--raw", type=Path, default=Path("data/raw/Base.csv"))
     parser.add_argument("--out", type=Path, default=Path("data/processed"))
+    parser.add_argument(
+        "--include-holdout",
+        action="store_true",
+        help="month 7 홀드아웃을 함께 저장한다. 7주차 드리프트 실험 전용.",
+    )
     args = parser.parse_args()
 
-    run(args.raw, args.out)
+    run(args.raw, args.out, include_holdout=args.include_holdout)
 
 
 if __name__ == "__main__":
