@@ -1,3 +1,15 @@
 # 테스트 전용. 서빙 런타임(fastapi, uvicorn)은 requirements.txt 쪽에 있다.
-pytest~=8.3
-httpx~=0.27
+#
+# 값의 출처는 CI 실행 로그다. 로컬 venv가 아니라 검증이 실제로 통과한 환경
+# (ubuntu-latest / python 3.11.16 / x86_64)에서 pip이 해석한 값을 그대로 옮겼다.
+# 재확인: Actions 로그의 "Install dependencies" 스텝.
+
+pytest==8.4.2
+httpx==0.28.1
+
+# 위 둘이 끌어오는 전이 의존성. requirements.lock.txt에는 없으므로
+# 여기서 고정해야 dev 쪽이 자유롭게 해석되는 구멍이 막힌다.
+httpcore==1.0.9
+iniconfig==2.3.0
+pluggy==1.6.0
+pygments==2.21.0
