@@ -55,7 +55,7 @@ def _synthetic_frame(sample: dict, rng: np.random.Generator) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def registered_model(tmp_path_factory, sample):
     tmp = tmp_path_factory.mktemp("mlflow")
     # 모델 레지스트리는 파일 백엔드를 지원하지 않는다. 테스트도 sqlite를 쓴다.
