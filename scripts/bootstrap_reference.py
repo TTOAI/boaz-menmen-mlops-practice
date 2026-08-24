@@ -55,6 +55,8 @@ sys.path.insert(0, str(ROOT / "src"))
 import model_loader  # noqa: E402
 from preprocess import EXPECTED_RAW_ROWS, EXPECTED_SPLIT, TARGET  # noqa: E402
 
+from _preflight import require_mlflow  # noqa: E402
+
 BASELINE = ROOT / "logs" / "baseline_m6.jsonl"
 VALID = ROOT / "data" / "processed" / "valid.parquet"
 
@@ -126,6 +128,9 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"tracking uri : {mlflow.get_tracking_uri()}")
+    # 계산 자체는 서버 없이 가능하다. 기록할 때만 확인한다.
+    if not args.no_mlflow:
+        require_mlflow()
 
     print("[1/4] load baseline")
     scores, y, threshold = load_baseline()

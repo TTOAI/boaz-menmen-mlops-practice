@@ -49,6 +49,7 @@ from predict_log import FIELDS  # noqa: E402
 from train import align_categories, load_splits, split_xy  # noqa: E402
 
 # C 경로를 재구현하지 않는다. 레벨 재적용 규약이 두 곳에 생기면 안 된다.
+from _preflight import require_mlflow  # noqa: E402
 from compare_score_paths import score_path_c  # noqa: E402
 
 DATA_DIR = ROOT / "data" / "processed"
@@ -104,6 +105,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"tracking uri : {mlflow.get_tracking_uri()}")
+    require_mlflow()
 
     print("[1/5] load parquet")
     train_df, valid_df = load_splits(DATA_DIR)

@@ -57,6 +57,7 @@ import model_loader  # noqa: E402
 from preprocess import MONTH_COL, TRAIN_MONTHS  # noqa: E402
 from train import align_categories, load_splits, split_xy  # noqa: E402
 
+from _preflight import require_mlflow  # noqa: E402
 from compare_score_paths import score_path_c  # noqa: E402
 
 DATA_DIR = ROOT / "data" / "processed"
@@ -117,6 +118,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"tracking uri : {mlflow.get_tracking_uri()}")
+    require_mlflow()
 
     print("[1/5] load baseline (빈 경계의 출처)")
     base = load_baseline_scores(BASELINE)

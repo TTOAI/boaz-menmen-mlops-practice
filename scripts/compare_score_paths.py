@@ -35,6 +35,8 @@ import model_loader  # noqa: E402
 from preprocess import CATEGORICAL_COLS  # noqa: E402
 from train import align_categories, load_splits, split_xy  # noqa: E402
 
+from _preflight import require_mlflow  # noqa: E402
+
 DATA_DIR = ROOT / "data" / "processed"
 RUN_ID_FILE = ROOT / "models" / "latest_run.json"
 
@@ -90,6 +92,7 @@ def report(a: np.ndarray, c: np.ndarray, threshold: float) -> None:
 
 def main() -> None:
     print(f"tracking uri : {mlflow.get_tracking_uri()}")
+    require_mlflow()
 
     print("[1/4] load parquet")
     train_df, valid_df = load_splits(DATA_DIR)

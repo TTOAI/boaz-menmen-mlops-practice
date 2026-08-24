@@ -48,6 +48,7 @@ from train import align_categories, load_splits, split_xy  # noqa: E402
 
 # C 경로는 재구현하지 않고 그대로 가져온다. 레벨 재적용 규약이 두 곳에 생기면
 # 이 스크립트가 재려는 대상 자체가 흐려진다.
+from _preflight import require_mlflow  # noqa: E402
 from compare_score_paths import score_path_c  # noqa: E402
 
 DATA_DIR = ROOT / "data" / "processed"
@@ -157,6 +158,8 @@ def main() -> None:
     parser.add_argument("--n", type=int, default=500)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
+
+    require_mlflow()
 
     print("[1/4] sample raw rows")
     idx, raw_rows = sample_indices(args.raw, args.n, args.seed)
