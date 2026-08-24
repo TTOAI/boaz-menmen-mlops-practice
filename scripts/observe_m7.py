@@ -67,8 +67,22 @@ def read_without_labels(path: Path) -> pd.DataFrame:
     return pd.read_parquet(path, engine="pyarrow", columns=cols)
 
 
-def check_inputs(m7: pd.DataFrame, m6: pd.DataFrame, loaded) -> list[str]:
-    """docs 2.3 입력 검증. 정량 2항목은 판정하고 정성 2항목은 값만 낸다."""
+def load_missing_bounds() -> dict[str, float]:
+    """컬럼별 결측률 임계. estimate_missing_bounds.py 가 run에 남긴 값."""
+    client = mlflow.MlflowClient()
+    mv = client.get_model_version_by_alias(
+        model_loader.MODEL_NAME, model_loader.MODEL_ALIAS
+    )
+    path = mlflow.artifacts.download_artifacts(
+        run_id=mv.run_id, artifact_path="missing_rate_bounds.json"
+    )
+    return json.loads(Path(path).read_text(encoding="utf-8"))["bounds_pp"]
+
+
+def check_inputs(
+    m7: pd.DataFrame, m6: pd.DataFrame, loaded, bounds: dict[str, float]
+) -> list[str]:
+    """docs 2.3 입력 검증. 네 항목 모두 정량 판정한다."""
     issues: list[str] = []
 
     # (1) 카테고리 — 학습 시점 레벨에 없는 값이 있는가
@@ -92,12 +106,24 @@ def check_inputs(m7: pd.DataFrame, m6: pd.DataFrame, loaded) -> list[str]:
             issues.append(f"dtype 불일치: {bad}")
         print(f"      컬럼 {len(m7.columns)}개 일치 / dtype {'일치' if not bad else f'★ {bad}'}")
 
-    # (3) 결측률 — 정성. 계단형 급변을 눈으로 본다.
-    print("  [3] 결측률 변화 (상위 5개, 정성 판단)")
-    d = (m7.isna().mean() - m6.isna().mean()).abs().sort_values(ascending=False)
-    for c in d.index[:5]:
+    # (3) 결측률 — 컬럼별 임계와 대조. estimate_missing_bounds.py 가 유도한 값이다.
+    print("  [3] 결측률 변화 (컬럼별 임계 대조)")
+    feats = [c for c in loaded.feature_names if c in m7.columns]
+    d = ((m7[feats].isna().mean() - m6[feats].isna().mean()) * 100)
+
+    over = [c for c in feats if abs(d[c]) > bounds.get(c, float("inf"))]
+    shown = list(d.abs().sort_values(ascending=False).index[:5])
+    for c in shown + [c for c in over if c not in shown]:
+        b = bounds.get(c, float("nan"))
+        mark = "★ 초과" if c in over else ""
         print(f"      {c:<32} m6 {m6[c].isna().mean()*100:>6.2f}%"
-              f"  m7 {m7[c].isna().mean()*100:>6.2f}%  Δ{d[c]*100:>+6.2f}%p")
+              f"  m7 {m7[c].isna().mean()*100:>6.2f}%"
+              f"  Δ{d[c]:>+6.2f}p  임계 {b:>5.2f}p  {mark}")
+
+    if over:
+        issues.append(f"결측률 임계 초과: {over}")
+    else:
+        print(f"      → 29개 컬럼 전부 임계 이내")
 
     return issues
 
@@ -121,7 +147,7 @@ def main() -> None:
     print(f"  v{loaded.version}  threshold {loaded.threshold:.6f}")
 
     print("[3/5] 입력 검증 (파이프라인 버그 배제)")
-    issues = check_inputs(m7, m6, loaded)
+    issues = check_inputs(m7, m6, loaded, load_missing_bounds())
 
     print("[4/5] score & log")
     X = m7.drop(columns=[MONTH_COL])
